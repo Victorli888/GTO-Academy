@@ -253,6 +253,191 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* Game Status */
+.game-status {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 10;
+}
+
+.phase-indicator {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.pot-display {
+    font-size: 16px;
+    color: #4fc3f7;
+}
+
+.current-bet {
+    font-size: 14px;
+    color: #e74c3c;
+}
+
+.game-message {
+    font-size: 12px;
+    color: #ecf0f1;
+    margin-top: 5px;
+}
+
+/* Player states */
+.player-seat.current-player {
+    border-color: #00ff00;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.7);
+    animation: pulse 1s infinite;
+}
+
+.player-seat.folded {
+    opacity: 0.5;
+    border-color: #666;
+}
+
+.last-action {
+    font-size: 10px;
+    color: #ffd700;
+    margin-top: 2px;
+}
+
+.hand-ranking {
+    font-size: 9px;
+    color: #4fc3f7;
+    margin-top: 2px;
+    font-weight: bold;
+}
+
+/* Action buttons */
+.action-buttons {
+    position: absolute;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 20;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.action-buttons .btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    min-width: 80px;
+}
+
+.action-buttons .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.action-buttons .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Raise dialog */
+.raise-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.raise-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    min-width: 300px;
+}
+
+.raise-content h4 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.raise-content input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.raise-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* Game controls */
+.game-controls {
+    position: absolute;
+    bottom: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 20;
+}
+
+.game-controls .btn {
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+}
+
+/* Showdown results */
+.showdown-results {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    z-index: 50;
+    min-width: 300px;
+}
+
+.showdown-results h3 {
+    color: #ffd700;
+    margin-bottom: 15px;
+}
+
+.winner-info {
+    margin: 10px 0;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.7); }
+    50% { box-shadow: 0 0 30px rgba(0, 255, 0, 1); }
+    100% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.7); }
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .poker-table {
@@ -278,5 +463,14 @@
         width: 15px;
         height: 21px;
         font-size: 6px;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .action-buttons .btn {
+        width: 200px;
     }
 }

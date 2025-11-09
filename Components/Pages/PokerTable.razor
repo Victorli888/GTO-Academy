@@ -1,209 +1,389 @@
 @page "/poker-table"
+@rendermode InteractiveServer
 @using GTOTrainerApp.Models
+@using GTOTrainerApp.Services
 @inject IJSRuntime JSRuntime
+@inject PokerGameService PokerGameService
+@inject HandEvaluationService HandEvaluator
+@inject ILogger<PokerTable> Logger
 
 <PageTitle>Poker Table - GTO Trainer</PageTitle>
 
 <div class="poker-table-container">
     <div class="poker-table">
-        <!-- Community Cards -->
-        <div class="community-cards">
-            <div class="card-slot @(gameState.CommunityCards.Count > 0 ? "has-card" : "")">
-                @if (gameState.CommunityCards.Count > 0)
-                {
-                    <div class="playing-card @gameState.CommunityCards[0].Suit.ToLower()">
-                        <span class="rank">@gameState.CommunityCards[0].Rank</span>
-                        <span class="suit">@GetSuitSymbol(gameState.CommunityCards[0].Suit)</span>
-                    </div>
-                }
-            </div>
-            <div class="card-slot @(gameState.CommunityCards.Count > 1 ? "has-card" : "")">
-                @if (gameState.CommunityCards.Count > 1)
-                {
-                    <div class="playing-card @gameState.CommunityCards[1].Suit.ToLower()">
-                        <span class="rank">@gameState.CommunityCards[1].Rank</span>
-                        <span class="suit">@GetSuitSymbol(gameState.CommunityCards[1].Suit)</span>
-                    </div>
-                }
-            </div>
-            <div class="card-slot @(gameState.CommunityCards.Count > 2 ? "has-card" : "")">
-                @if (gameState.CommunityCards.Count > 2)
-                {
-                    <div class="playing-card @gameState.CommunityCards[2].Suit.ToLower()">
-                        <span class="rank">@gameState.CommunityCards[2].Rank</span>
-                        <span class="suit">@GetSuitSymbol(gameState.CommunityCards[2].Suit)</span>
-                    </div>
-                }
-            </div>
-            <div class="card-slot @(gameState.CommunityCards.Count > 3 ? "has-card" : "")">
-                @if (gameState.CommunityCards.Count > 3)
-                {
-                    <div class="playing-card @gameState.CommunityCards[3].Suit.ToLower()">
-                        <span class="rank">@gameState.CommunityCards[3].Rank</span>
-                        <span class="suit">@GetSuitSymbol(gameState.CommunityCards[3].Suit)</span>
-                    </div>
-                }
-            </div>
-            <div class="card-slot @(gameState.CommunityCards.Count > 4 ? "has-card" : "")">
-                @if (gameState.CommunityCards.Count > 4)
-                {
-                    <div class="playing-card @gameState.CommunityCards[4].Suit.ToLower()">
-                        <span class="rank">@gameState.CommunityCards[4].Rank</span>
-                        <span class="suit">@GetSuitSymbol(gameState.CommunityCards[4].Suit)</span>
-                    </div>
-                }
+        <!-- Game Status -->
+        <div class="game-status">
+            <div class="phase-indicator">@GetPhaseDisplay()</div>
+            <div class="pot-display">Pot: $@gameState.Pot</div>
+            <div class="current-bet">Current Bet: $@gameState.CurrentBet</div>
+            <div class="game-message">@gameState.GameMessage</div>
+            <div class="debug-info" style="font-size: 10px; color: #ccc; margin-top: 5px;">
+                Game Active: @gameState.IsGameActive | Betting Active: @gameState.IsBettingRoundActive | Players: @gameState.Players.Count
             </div>
         </div>
 
-        <!-- Pot -->
-        <div class="pot">
-            <div class="pot-amount">$@gameState.Pot</div>
+        <!-- Community Cards -->
+        <div class="community-cards">
+            @for (int i = 0; i < 5; i++)
+            {
+                <div class="card-slot @(gameState.CommunityCards.Count > i ? "has-card" : "")">
+                    @if (gameState.CommunityCards.Count > i)
+                    {
+                        <div class="playing-card @gameState.CommunityCards[i].Suit.ToLower()">
+                            <span class="rank">@gameState.CommunityCards[i].Rank</span>
+                            <span class="suit">@GetSuitSymbol(gameState.CommunityCards[i].Suit)</span>
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
         <!-- Players around the table -->
         @for (int i = 0; i < 8; i++)
         {
-            var player = gameState.Players[i];
-            var position = GetPlayerPosition(i);
-            <div class="player-seat @position @(player.IsActive ? "active" : "") @(player.IsDealer ? "dealer" : "")">
-                <div class="player-info">
-                    <div class="player-name">@player.Name</div>
-                    <div class="player-chips">$@player.Chips</div>
-                    <div class="player-bet">@(player.CurrentBet > 0 ? $"Bet: ${player.CurrentBet}" : "")</div>
-                </div>
-                
-                @if (player.HoleCards.Count > 0)
-                {
-                    <div class="hole-cards">
-                        @foreach (var card in player.HoleCards)
+            var hasPlayer = i < gameState.Players.Count;
+            @if (hasPlayer)
+            {
+                var player = gameState.Players[i];
+                var position = GetPlayerPosition(i);
+                var isCurrentPlayer = gameState.CurrentPlayerIndex == i && gameState.IsBettingRoundActive;
+                <div class="player-seat @position @(player.IsActive && !player.HasFolded ? "active" : "") @(player.IsDealer ? "dealer" : "") @(isCurrentPlayer ? "current-player" : "") @(player.HasFolded ? "folded" : "")">
+                    <div class="player-info">
+                        <div class="player-name">@player.Name</div>
+                        <div class="player-chips">$@player.Chips</div>
+                        <div class="player-bet">@(player.CurrentBet > 0 ? $"Bet: ${player.CurrentBet}" : "")</div>
+                        @if (player.LastAction != PlayerAction.None)
                         {
-                            <div class="playing-card @card.Suit.ToLower() @(player.IsHuman ? "" : "hidden")">
-                                <span class="rank">@card.Rank</span>
-                                <span class="suit">@GetSuitSymbol(card.Suit)</span>
-                            </div>
+                            <div class="last-action">@GetActionDisplay(player.LastAction, player.LastBetAmount)</div>
                         }
+                        @if (player.BestHand.Type != HandType.HighCard && gameState.Phase == GamePhase.Showdown)
+                        {
+                            <div class="hand-ranking">@player.BestHand.Description</div>
+                        }
+                    </div>
+                    
+                    @if (player.HoleCards.Count > 0)
+                    {
+                        <div class="hole-cards">
+                            @foreach (var card in player.HoleCards)
+                            {
+                                <div class="playing-card @card.Suit.ToLower() @(player.IsHuman ? "" : "hidden")">
+                                    <span class="rank">@card.Rank</span>
+                                    <span class="suit">@GetSuitSymbol(card.Suit)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="player-seat @GetPlayerPosition(i) empty">
+                    <div class="player-info">
+                        <div class="player-name">Empty Seat</div>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- Action buttons for human player -->
+        @if (gameState.IsGameActive && gameState.IsBettingRoundActive && IsCurrentPlayerHuman())
+        {
+            <div class="action-buttons">
+                <button class="btn btn-danger" @onclick="async () => await MakePlayerAction(PlayerAction.Fold)" disabled="@(!CanFold())">Fold</button>
+                <button class="btn btn-warning" @onclick="async () => await MakePlayerAction(PlayerAction.Check)" disabled="@(!CanCheck())">Check</button>
+                <button class="btn btn-info" @onclick="async () => await MakePlayerAction(PlayerAction.Call)" disabled="@(!CanCall())">Call $@GetCallAmount()</button>
+                <button class="btn btn-success" @onclick="() => ShowRaiseDialog()" disabled="@(!CanRaise())">Raise</button>
+                <button class="btn btn-primary" @onclick="async () => await MakePlayerAction(PlayerAction.AllIn)" disabled="@(!CanAllIn())">All In</button>
+            </div>
+        }
+
+        <!-- Raise dialog -->
+        @if (showRaiseDialog)
+        {
+            <div class="raise-dialog">
+                <div class="raise-content">
+                    <h4>Raise Amount</h4>
+                    <input type="number" @bind="raiseAmount" min="@GetMinRaise()" max="@GetMaxRaise()" />
+                    <div class="raise-buttons">
+                        <button class="btn btn-success" @onclick="async () => { await MakePlayerAction(PlayerAction.Raise, raiseAmount); showRaiseDialog = false; }">Raise</button>
+                        <button class="btn btn-secondary" @onclick="() => showRaiseDialog = false">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Game control buttons -->
+        <div class="game-controls">
+            <button class="btn btn-primary" @onclick="StartNewGame">New Game</button>
+            <button class="btn btn-success" @onclick="StartHand" disabled="@(!gameState.IsGameActive || gameState.IsBettingRoundActive)">Start Hand</button>
+            <button class="btn btn-warning" @onclick="NextHand" disabled="@(gameState.Phase != GamePhase.Showdown)">Next Hand</button>
+            <button class="btn btn-info" @onclick="TestService">Test Service</button>
+        </div>
+
+        <!-- Hand evaluation display -->
+        @if (gameState.Phase == GamePhase.Showdown && gameState.Winners.Any())
+        {
+            <div class="showdown-results">
+                <h3>Showdown Results</h3>
+                @foreach (var winner in gameState.Winners)
+                {
+                    <div class="winner-info">
+                        <strong>@winner.Name</strong> - @winner.BestHand.Description
                     </div>
                 }
             </div>
         }
-
-        <!-- Action buttons -->
-        <div class="action-buttons">
-            <button class="btn btn-primary" @onclick="StartNewGame">New Game</button>
-            <button class="btn btn-success" @onclick="DealCards">Deal Cards</button>
-            <button class="btn btn-warning" @onclick="NextRound">Next Round</button>
-        </div>
     </div>
 </div>
 
 @code {
     private GameState gameState = new();
+    private bool showRaiseDialog = false;
+    private int raiseAmount = 0;
 
     protected override void OnInitialized()
     {
-        InitializeGame();
-    }
-
-    private void InitializeGame()
-    {
-        gameState = new GameState();
-        // Initialize 8 players
-        for (int i = 0; i < 8; i++)
+        try
         {
-            gameState.Players.Add(new Player
-            {
-                Name = i == 0 ? "You" : $"Player {i + 1}",
-                Chips = 1000,
-                IsHuman = i == 0
-            });
+            Logger.LogInformation("Initializing PokerTable component");
+            gameState.GameMessage = "Initializing game...";
+            PokerGameService.StartNewGame(gameState);
+            gameState.GameMessage = "Game initialized successfully! Click 'Start Hand' to begin.";
+            Logger.LogDebug("Game initialized with {PlayerCount} players", gameState.Players.Count);
+            Logger.LogDebug("Button state - IsGameActive: {IsActive}, IsBettingRoundActive: {IsBetting}, StartHandDisabled: {Disabled}", 
+                gameState.IsGameActive, 
+                gameState.IsBettingRoundActive,
+                !gameState.IsGameActive || gameState.IsBettingRoundActive);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing game");
+            gameState.GameMessage = $"Error initializing game: {ex.Message}";
+            #if DEBUG
+            gameState.GameMessage += $"\nStack: {ex.StackTrace}";
+            #endif
         }
     }
 
     private void StartNewGame()
     {
-        InitializeGame();
+        PokerGameService.StartNewGame(gameState);
         StateHasChanged();
     }
 
-    private void DealCards()
+    private async Task StartHand()
     {
-        // Simple card dealing logic
-        var deck = CreateDeck();
-        var random = new Random();
-        
-        // Deal hole cards
-        for (int i = 0; i < 2; i++)
+        try
         {
-            foreach (var player in gameState.Players)
-            {
-                if (deck.Count > 0)
-                {
-                    var cardIndex = random.Next(deck.Count);
-                    player.HoleCards.Add(deck[cardIndex]);
-                    deck.RemoveAt(cardIndex);
-                }
-            }
+            Logger.LogInformation("StartHand button clicked");
+            Logger.LogDebug("Before StartHand - Players: {Count}, IsGameActive: {IsActive}, IsBettingActive: {IsBetting}", 
+                gameState.Players.Count, gameState.IsGameActive, gameState.IsBettingRoundActive);
+            
+            gameState.GameMessage = "Starting hand...";
+            StateHasChanged();
+            
+            PokerGameService.StartHand(gameState);
+            
+            Logger.LogDebug("After StartHand - Players: {Count}, HoleCards: {HoleCardCount}, Phase: {Phase}, Message: {Message}", 
+                gameState.Players.Count, 
+                gameState.Players.Sum(p => p.HoleCards.Count),
+                gameState.Phase,
+                gameState.GameMessage);
+            
+            // Don't overwrite the service's message - it contains important info
+            // The service already sets gameState.GameMessage with the final status
+            StateHasChanged();
+            
+            // Process AI players automatically
+            await ProcessAIPlayersUntilHumanTurn();
         }
-        
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error starting hand");
+            gameState.GameMessage = $"Error starting hand: {ex.Message}";
+            #if DEBUG
+            gameState.GameMessage += $"\nStack: {ex.StackTrace}";
+            #endif
+            StateHasChanged();
+        }
     }
 
-    private void NextRound()
+    private async Task NextHand()
     {
-        // Deal community cards based on current round
-        var deck = CreateDeck();
-        var random = new Random();
-        
-        if (gameState.CommunityCards.Count == 0)
+        if (gameState.Phase == GamePhase.Showdown)
         {
-            // Flop - deal 3 cards
-            for (int i = 0; i < 3; i++)
-            {
-                if (deck.Count > 0)
-                {
-                    var cardIndex = random.Next(deck.Count);
-                    gameState.CommunityCards.Add(deck[cardIndex]);
-                    deck.RemoveAt(cardIndex);
-                }
-            }
+            await StartHand();
         }
-        else if (gameState.CommunityCards.Count == 3)
-        {
-            // Turn - deal 1 card
-            if (deck.Count > 0)
-            {
-                var cardIndex = random.Next(deck.Count);
-                gameState.CommunityCards.Add(deck[cardIndex]);
-            }
-        }
-        else if (gameState.CommunityCards.Count == 4)
-        {
-            // River - deal 1 card
-            if (deck.Count > 0)
-            {
-                var cardIndex = random.Next(deck.Count);
-                gameState.CommunityCards.Add(deck[cardIndex]);
-            }
-        }
-        
-        StateHasChanged();
     }
 
-    private List<Card> CreateDeck()
+    private void TestService()
     {
-        var deck = new List<Card>();
-        var suits = new[] { "Hearts", "Diamonds", "Clubs", "Spades" };
-        var ranks = new[] { "A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2" };
-        
-        foreach (var suit in suits)
+        try
         {
-            foreach (var rank in ranks)
+            gameState.GameMessage = "Testing service...";
+            StateHasChanged();
+            
+            // Test if service is null
+            if (PokerGameService == null)
             {
-                deck.Add(new Card { Suit = suit, Rank = rank });
+                gameState.GameMessage = "PokerGameService is NULL!";
+            }
+            else
+            {
+                gameState.GameMessage = "PokerGameService is working! Players: " + gameState.Players.Count;
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            gameState.GameMessage = $"Service test error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task MakePlayerAction(PlayerAction action, int amount = 0)
+    {
+        PokerGameService.MakePlayerAction(gameState, action, amount);
+        StateHasChanged();
+        
+        // After human player acts, process AI players
+        await ProcessAIPlayersUntilHumanTurn();
+    }
+    
+    /// <summary>
+    /// Processes AI player actions automatically until it's a human player's turn
+    /// or the betting round ends.
+    /// </summary>
+    private async Task ProcessAIPlayersUntilHumanTurn()
+    {
+        // Process AI players in a loop until it's a human's turn or betting round ends
+        while (gameState.IsBettingRoundActive)
+        {
+            var currentPlayer = gameState.Players[gameState.CurrentPlayerIndex];
+            
+            // If it's a human player's turn, stop and wait for input
+            if (currentPlayer.IsHuman)
+            {
+                Logger.LogDebug("Waiting for human player {PlayerName} to act", currentPlayer.Name);
+                break;
+            }
+            
+            // Process AI player action
+            var processed = await PokerGameService.ProcessAIPlayerActionAsync(gameState);
+            
+            if (!processed)
+            {
+                // No action was processed (shouldn't happen, but safety check)
+                break;
+            }
+            
+            // Update UI
+            StateHasChanged();
+            
+            // Small delay to make the game play visible (optional, can be removed)
+            await Task.Delay(500);
+            
+            // Check if betting round ended
+            if (!gameState.IsBettingRoundActive)
+            {
+                Logger.LogDebug("Betting round ended");
+                break;
             }
         }
-        
-        return deck;
+    }
+
+    // Action validation methods
+    private bool CanFold() => true;
+    
+    private bool CanCheck() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return false;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return player.CurrentBet == gameState.CurrentBet;
+    }
+    
+    private bool CanCall() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return false;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return player.CurrentBet < gameState.CurrentBet && player.Chips > 0;
+    }
+    
+    private bool CanRaise() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return false;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return player.Chips >= gameState.MinRaise;
+    }
+    
+    private bool CanAllIn() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return false;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return player.Chips > 0;
+    }
+
+    private int GetCallAmount() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return 0;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return Math.Min(gameState.CurrentBet - player.CurrentBet, player.Chips);
+    }
+    
+    private int GetMinRaise() => gameState.MinRaise;
+    
+    private int GetMaxRaise() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return 0;
+        var player = gameState.Players[gameState.CurrentPlayerIndex];
+        return player.Chips;
+    }
+
+    private bool IsCurrentPlayerHuman() 
+    {
+        if (gameState.CurrentPlayerIndex < 0 || gameState.CurrentPlayerIndex >= gameState.Players.Count)
+            return false;
+        return gameState.Players[gameState.CurrentPlayerIndex].IsHuman;
+    }
+
+    private void ShowRaiseDialog()
+    {
+        raiseAmount = gameState.MinRaise;
+        showRaiseDialog = true;
+    }
+
+    // UI helper methods
+    private string GetPhaseDisplay()
+    {
+        return gameState.Phase switch
+        {
+            GamePhase.PreFlop => "Pre-Flop",
+            GamePhase.Flop => "Flop",
+            GamePhase.Turn => "Turn",
+            GamePhase.River => "River",
+            GamePhase.Showdown => "Showdown",
+            _ => ""
+        };
+    }
+
+    private string GetActionDisplay(PlayerAction action, int amount)
+    {
+        return action switch
+        {
+            PlayerAction.Fold => "Folded",
+            PlayerAction.Check => "Checked",
+            PlayerAction.Call => $"Called ${amount}",
+            PlayerAction.Raise => $"Raised ${amount}",
+            PlayerAction.AllIn => $"All In ${amount}",
+            _ => ""
+        };
     }
 
     private string GetPlayerPosition(int index)
